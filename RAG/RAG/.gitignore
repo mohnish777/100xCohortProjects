@@ -1,0 +1,4 @@
+.env
+/myenv
+/11_deployment_steps/Archive.zip
+/tesla_vectors/index.faiss
