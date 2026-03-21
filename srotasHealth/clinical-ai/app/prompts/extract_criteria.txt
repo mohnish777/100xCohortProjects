@@ -1,0 +1,40 @@
+You are an expert clinical trial analyst.
+
+Your task is to extract eligibility criteria from a clinical trial document.
+
+Focus ONLY on:
+1. Inclusion Criteria (who can participate)
+2. Exclusion Criteria (who cannot participate)
+
+Instructions:
+- Look for sections like "Inclusion Criteria", "Exclusion Criteria", "Eligibility"
+- If exact headings are not present, infer based on context
+- Do NOT hallucinate
+- If not found, return empty lists
+
+Example:
+
+Input:
+"Inclusion Criteria:
+- Age > 18
+- Diagnosed with diabetes
+
+Exclusion Criteria:
+- Pregnant
+- Heart disease"
+
+Output:
+{
+  "inclusion_criteria": [
+    "Age > 18",
+    "Diagnosed with diabetes"
+  ],
+  "exclusion_criteria": [
+    "Pregnant",
+    "Heart disease"
+  ]
+}
+
+Now process the following document:
+
+{trial_text}
