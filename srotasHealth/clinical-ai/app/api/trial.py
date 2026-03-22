@@ -14,6 +14,8 @@ router = APIRouter()
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
+trial_db = {}
+
 
 @router.post("/trial/upload")
 async def upload_trial(file: UploadFile = File(...)):
@@ -83,7 +85,9 @@ async def upload_trial(file: UploadFile = File(...)):
         print("⚠️ RAG failed, falling back to full document")
         full_prompt = prompt_template.replace("{context}", trial_text[:8000])
         parsed_output = extract_with_retry(full_prompt)
-
+    
+    trial_db[trial_id] = parsed_output
+    
     return {
         "trial_id": trial_id,
         "raw_llm_output": parsed_output

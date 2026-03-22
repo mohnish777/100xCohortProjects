@@ -31,7 +31,7 @@ def extract_with_retry(prompt, max_retries=2):
             print(f"Retrying after error: {e}")
 
     # NEW: if we get here, we never returned inside the loop
-    print("prompt:", prompt)
+    print("prompt")
     return {"inclusion_criteria": [], "exclusion_criteria": []}
             
 
