@@ -37,4 +37,4 @@ Output:
 
 Now process the following document:
 
-{trial_text}
+{context}

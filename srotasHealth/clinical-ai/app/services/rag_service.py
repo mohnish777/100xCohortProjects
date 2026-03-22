@@ -1,6 +1,6 @@
+from app.services.embedding_service import get_embeddings
 import faiss
 import numpy as np
-
 
 def chunk_text(text: str, chunk_size=500, overlap=50)-> list[str]:
     chunk = []
@@ -13,15 +13,24 @@ def chunk_text(text: str, chunk_size=500, overlap=50)-> list[str]:
 
     return chunk
 
-index = None
+trial_vector_store ={}
 stored_chunks = []
 
-def create_faiss_index(embeddings):
-    global index
+def create_faiss_index(trial_id, embeddings):
     dim = len(embeddings[0])
     index = faiss.IndexFlatL2(dim)
     index.add(np.array(embeddings))
+    trial_vector_store[trial_id] = {
+        "index": index,
+        "chunks": stored_chunks
+    }
 
-def search(query_embedding, k=3):
-    D, I = index.search(np.array([query_embedding]), k)
+def search(trial_id, query_embedding, k=20):
+    trial_data = trial_vector_store[trial_id]
+    D, I = trial_data["index"].search(np.array([query_embedding]), k)
     return [stored_chunks[i] for i in I[0]]
+
+def retrieve_relevant_context(trial_id, query):
+    query_embeddings = get_embeddings([query])[0]
+    relevant_chunks = search(trial_id, query_embeddings)
+    return "\n".join(relevant_chunks)
