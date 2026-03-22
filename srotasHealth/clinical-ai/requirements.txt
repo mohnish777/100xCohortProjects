@@ -5,3 +5,5 @@ python-dotenv
 google-genai
 pypdf
 python-multipart
+faiss-cpu
+sentence-transformers
