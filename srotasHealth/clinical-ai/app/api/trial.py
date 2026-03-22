@@ -6,7 +6,7 @@ import json
 
 from app.services.embedding_service import get_embeddings
 from app.services.pdf_service import extract_text_from_pdf
-from app.services.llm_services import call_llm
+from app.services.llm_services import call_llm, extract_with_retry
 from app.services.rag_service import chunk_text, retrieve_relevant_context, stored_chunks, create_faiss_index
 
 router = APIRouter()
@@ -37,32 +37,55 @@ async def upload_trial(file: UploadFile = File(...)):
     create_faiss_index(trial_id, embeddings)
 
     # retrieve relevant context from vector store for trial text
-    context = retrieve_relevant_context(trial_id, "inclusion and exclusion criteria")
+    queries = [
+        "inclusion criteria",
+        "exclusion criteria",
+        'elegibility requirements'
+    ]
+    all_chunks = []
+    for q in queries:
+        context = retrieve_relevant_context(trial_id, q)
+        all_chunks.append(context)
+
+    final_context = "\n".join(all_chunks)
+
+    lines = final_context.splitlines()
+    seen = set()
+    deduped_lines = []
+    for line in lines:
+        if line not in seen:
+            deduped_lines.append(line)
+            seen.add(line)
+
+    final_context = "\n".join(deduped_lines)
 
     # Load prompt
     with open("app/prompts/extract_criteria.txt", "r") as f:
         prompt_template = f.read()
 
-    prompt = prompt_template.replace("{context}", context)  
+    prompt = prompt_template.replace("{context}", final_context)  
 
     # Call LLM
-    print("context output:", context)
-    llm_response = call_llm(prompt)
-    parsed_output = extract_json(llm_response)
+    #print("context output:", final_context)
 
-    if not parsed_output.get("inclusion_criteria") and not parsed_output.get("exclusion_criteria"):
-        return {
-            "trial_id": trial_id,
-            "warning": "No eligibility criteria found. Please upload a valid clinical trial document."
-        }
+    # Step 3: Extract with retry
+    parsed_output = extract_with_retry(prompt)
+
+    print("parsed_output:", parsed_output)
+
+    # Step 4: Check if criteria found
+    criteria_found: bool = (
+        parsed_output.get("inclusion_criteria") or 
+        parsed_output.get("exclusion_criteria")
+    )
+
+    if not criteria_found:
+        print("⚠️ RAG failed, falling back to full document")
+        full_prompt = prompt_template.replace("{context}", trial_text[:8000])
+        parsed_output = extract_with_retry(full_prompt)
 
     return {
         "trial_id": trial_id,
         "raw_llm_output": parsed_output
     }
 
-def extract_json(text):
-    match = re.search(r'\{.*\}', text, re.DOTALL)
-    if match:
-        return json.loads(match.group())
-    return {}

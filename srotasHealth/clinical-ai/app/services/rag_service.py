@@ -25,10 +25,12 @@ def create_faiss_index(trial_id, embeddings):
         "chunks": stored_chunks
     }
 
-def search(trial_id, query_embedding, k=20):
+def search(trial_id, query_embedding, k=50):
     trial_data = trial_vector_store[trial_id]
-    D, I = trial_data["index"].search(np.array([query_embedding]), k)
-    return [stored_chunks[i] for i in I[0]]
+    index = trial_data["index"]
+    chunks = trial_data["chunks"]
+    D, I = index.search(np.array([query_embedding]), k)
+    return [chunks[i] for i in I[0]]
 
 def retrieve_relevant_context(trial_id, query):
     query_embeddings = get_embeddings([query])[0]
