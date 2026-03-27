@@ -7,7 +7,7 @@ import json
 from app.services.embedding_service import get_embeddings
 from app.services.pdf_service import extract_text_from_pdf
 from app.services.llm_services import call_llm, extract_with_retry
-from app.services.rag_service import chunk_text, retrieve_relevant_context, stored_chunks, create_faiss_index
+from app.services.rag_service import chunk_text, retrieve_relevant_context, create_faiss_index
 
 router = APIRouter()
 
@@ -32,11 +32,9 @@ async def upload_trial(file: UploadFile = File(...)):
 
     #chunk trial text
     chunks = chunk_text(trial_text)
-    stored_chunks.extend(chunks)
 
-    #create embeddings
-    embeddings = get_embeddings(stored_chunks)
-    create_faiss_index(trial_id, embeddings)
+    #create embeddings and store in trial_db
+    create_faiss_index(trial_id, chunks)
 
     # retrieve relevant context from vector store for trial text
     queries = [

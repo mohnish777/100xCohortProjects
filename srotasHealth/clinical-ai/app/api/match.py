@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 from app.schemas.patient_schema import Patient
+from app.services.ai_matching import ai_match
 from app.services.scoring_service import calculate_score
 from app.api.patient import patients_db
 from app.api.trial import trial_db
@@ -39,3 +40,18 @@ def match(trial_id: str, patient_id: str):
         "score": score,
         "reasons": match_result["reasons"]
     }
+
+@router.post("/match-ai")
+def match_ai(trial_id: str, patient_id: str):
+    trial_data = trial_db.get(trial_id)
+    patient_data = patients_db.get(patient_id)
+
+    if not trial_data or not patient_data:
+        return {"error": "Invalid Ids"}
+    
+    trial = TrialCriteria(**trial_data)
+    patient = Patient(**patient_data)
+    
+    result = ai_match(trial, patient)
+    
+    return result

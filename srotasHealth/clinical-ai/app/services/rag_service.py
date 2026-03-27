@@ -1,3 +1,5 @@
+from typing import List
+
 from app.services.embedding_service import get_embeddings
 import faiss
 import numpy as np
@@ -14,15 +16,15 @@ def chunk_text(text: str, chunk_size=500, overlap=50)-> list[str]:
     return chunk
 
 trial_vector_store ={}
-stored_chunks = []
 
-def create_faiss_index(trial_id, embeddings):
+def create_faiss_index(trial_id, chunks: List[str]):
+    embeddings = get_embeddings(chunks)
     dim = len(embeddings[0])
     index = faiss.IndexFlatL2(dim)
     index.add(np.array(embeddings))
     trial_vector_store[trial_id] = {
         "index": index,
-        "chunks": stored_chunks
+        "chunks": chunks
     }
 
 def search(trial_id, query_embedding, k=50):

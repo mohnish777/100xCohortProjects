@@ -34,7 +34,7 @@ def match_patient(trial_criteria: TrialCriteria, patient: Patient):
 
 
 
-def semantic_match(rule, patient_text):
+def semantic_match(rule, patient_text) -> bool: 
     embeddings = get_embeddings([rule, patient_text])
     score = cosine_similarity(embeddings[0], embeddings[1])
     return score > 0.3  # threshold
