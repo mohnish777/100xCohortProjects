@@ -1,18 +1,22 @@
 from fastapi import APIRouter
+from app.config import supabase
 from app.schemas.patient_schema import Patient
 import uuid
 
 
 router = APIRouter()
 
-patients_db = {}
 
 @router.post("/patient/add")
 def add_patient(patient: Patient):
-    patient_id = str(uuid.uuid4())
-    patients_db[patient_id] = patient.model_dump()
+    result = supabase.table("patients").insert({
+        "age": patient.age,
+        "gender": patient.gender,
+        "conditions": patient.conditions,
+        "pregnant": patient.pregnant
+    }).execute()
     
     return {
-        "patient_id": patient_id,
+        "patient_id": result.data[0]["id"],
         "data": patient
         }

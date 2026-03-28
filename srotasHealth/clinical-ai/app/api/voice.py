@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.services.voice_service import generate_summary, text_to_speech
+from app.services.voice_service import generate_summary, generate_summary_llm, text_to_speech
 from app.services.agent_service import run_matching_agent
 from app.api.patient import patients_db
 from app.api.trial import trial_db
@@ -24,6 +24,8 @@ def voice_run(trial_id: str):
     }
 
     summary = generate_summary(agent_result)
+    
+    #summary_llm = generate_summary_llm(agent_result)
 
     audio_file = text_to_speech(summary)
 

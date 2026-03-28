@@ -1,9 +1,8 @@
 
 
 from fastapi import APIRouter
-from app.api.trial import trial_db
+from app.config import supabase
 from app.schemas.Trial_criteria import TrialCriteria
-from app.api.patient import patients_db
 from app.services.agent_service import run_matching_agent
 
 
@@ -11,14 +10,22 @@ router  = APIRouter()
 
 @router.post("/agent/run")
 def run_agent(trial_id: str):
-    trial_data = trial_db.get(trial_id)
+    """Run matching agent to find top patient matches for a trial"""
+    # Fetch trial from Supabase
+    trial_response = supabase.table("trials").select("*").eq("id", trial_id).execute()
 
-    if not trial_data:
-        return {"error" : "Invalid trial ID"}
+    if not trial_response.data:
+        return {"error": "Invalid trial ID"}
     
+    trial_data = trial_response.data[0]
     trial = TrialCriteria(**trial_data)
 
-    patients = list(patients_db.values())
+    # Fetch all patients from Supabase
+    patients_response = supabase.table("patients").select("*").execute()
+    patients = patients_response.data
+    
+    if not patients:
+        return {"message": "No patients found in database"}
 
     top_matches = run_matching_agent(trial, patients)
 
