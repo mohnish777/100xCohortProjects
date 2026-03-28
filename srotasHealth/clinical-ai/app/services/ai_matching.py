@@ -14,7 +14,7 @@ def ai_match(trial: TrialCriteria, patient: Patient):
 
     prompt = master_prompt.replace("{trial_context}", trial_context)\
                         .replace("{patient_context}", patient_context)
-    
+    print("prompt: ai match:", prompt)
     response = call_llm(prompt)
     parsed = extract_json(response)
     return parsed
