@@ -12,6 +12,7 @@ faiss-cpu
 numpy
 pypdf
 google-generativeai
+google-genai
 
 # --- THE FIX: RELAX GOOGLE & GRPC PINS ---
 # Removing specific versions lets pip find a matching set for Linux
