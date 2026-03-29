@@ -11,7 +11,6 @@ sentence-transformers
 faiss-cpu
 numpy
 pypdf
-google-generativeai
 google-genai
 
 # --- THE FIX: RELAX GOOGLE & GRPC PINS ---
