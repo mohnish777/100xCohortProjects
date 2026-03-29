@@ -8,8 +8,12 @@ from app.api import trial
 
 app = FastAPI()
 
-app.include_router(trial.router)
-app.include_router(patient.router)
-app.include_router(match.router)
-app.include_router(agent.router)
-app.include_router(voice.router)
+# app.include_router(trial.router)
+# app.include_router(patient.router)
+# app.include_router(match.router)
+# app.include_router(agent.router)
+# app.include_router(voice.router)
+
+@app.get("/")
+def root():
+    return {"status": "ok"}

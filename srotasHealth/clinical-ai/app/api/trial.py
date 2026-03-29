@@ -75,7 +75,6 @@ async def upload_trial(file: UploadFile = File(...)):
         for i, (chunk, embedding) in enumerate(zip(chunks, embeddings))
     ]
     
-    supabase.table("trial_embeddings").insert(embedding_records).execute()
 
     # retrieve relevant context from vector store for trial text
     queries = [
@@ -134,6 +133,8 @@ async def upload_trial(file: UploadFile = File(...)):
         "inclusion_criteria": parsed_output.get("inclusion_criteria", []),
         "exclusion_criteria": parsed_output.get("exclusion_criteria", [])
     }).execute()
+
+    supabase.table("trial_embeddings").insert(embedding_records).execute()
     
     return {
         "trial_id": trial_id,
