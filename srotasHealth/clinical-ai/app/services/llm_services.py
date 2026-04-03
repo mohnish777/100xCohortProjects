@@ -7,10 +7,19 @@ import json
 load_dotenv()
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-client = genai.Client(api_key=GEMINI_API_KEY)
+client = None
+
+
+def get_client():
+    global client
+    if client is None:
+        if not GEMINI_API_KEY:
+            raise RuntimeError("GEMINI_API_KEY must be set before calling the LLM.")
+        client = genai.Client(api_key=GEMINI_API_KEY)
+    return client
 
 def call_llm(prompt: str) -> str:
-    response = client.models.generate_content(
+    response = get_client().models.generate_content(
     model="gemini-2.5-flash",
     contents = prompt)
 

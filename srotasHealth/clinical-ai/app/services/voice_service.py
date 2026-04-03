@@ -1,11 +1,9 @@
 from app.services.llm_services import call_llm
 from dotenv import load_dotenv
 from elevenlabs.client import ElevenLabs
-from elevenlabs.play import play
 import os
-
+import uuid
 load_dotenv()
-
 
 
 def generate_summary_llm(agent_result):
@@ -52,12 +50,12 @@ def text_to_speech(text):
     # IMPORTANT: Once you iterate through audio_stream, it is "consumed"
     audio_data = b"".join(audio_stream)
 
-    # 3. Save the audio to a specific folder
     folder_name = "my_audio_files"
     os.makedirs(folder_name, exist_ok=True)
-    file_path = os.path.join(folder_name, "output_audio.mp3")
+    filename = f"{uuid.uuid4()}.mp3"
+    file_path = os.path.join(folder_name, filename)
     
     with open(file_path, "wb") as f:
         f.write(audio_data)
 
-    return "output.mp3"
+    return f"/media/{filename}"
