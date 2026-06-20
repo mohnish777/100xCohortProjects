@@ -57,8 +57,22 @@ create table if not exists trials (
   sponsor text,
   cancer_track text not null,
   protocol_source text not null default 'demo_upload',
+  protocol_hash text unique,
   protocol_summary text,
   created_at timestamptz not null default now()
+);
+
+create table if not exists protocol_extractions (
+  id uuid primary key default gen_random_uuid(),
+  protocol_hash text not null unique,
+  source_filename text not null,
+  trial_id uuid references trials(id) on delete set null,
+  agent_mode text not null,
+  extracted_facts jsonb not null default '[]'::jsonb,
+  extracted_criteria jsonb not null default '[]'::jsonb,
+  protocol_excerpt text,
+  created_at timestamptz not null default now(),
+  reused_at timestamptz
 );
 
 create table if not exists trial_criteria (
@@ -116,4 +130,5 @@ create table if not exists follow_up_tasks (
 create index if not exists idx_patient_fact_values_patient on patient_fact_values(patient_id);
 create index if not exists idx_patient_fact_values_fact on patient_fact_values(fact_key);
 create index if not exists idx_trial_criteria_trial on trial_criteria(trial_id);
+create index if not exists idx_protocol_extractions_hash on protocol_extractions(protocol_hash);
 create index if not exists idx_follow_up_tasks_status on follow_up_tasks(status);

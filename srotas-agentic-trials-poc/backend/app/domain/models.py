@@ -99,6 +99,8 @@ class ProtocolLearningRun(BaseModel):
     source_filename: str | None = None
     extraction_mode: Literal["simulation", "pdf_text"] = "simulation"
     agent_mode: Literal["deterministic", "openai_structured"] = "deterministic"
+    protocol_cache_status: Literal["simulation", "new_extraction", "cached"] = "simulation"
+    protocol_hash: str | None = None
     agent_notes: list[str] = Field(default_factory=list)
     protocol_excerpt: str
     extracted_facts: list[ClinicalFact]
@@ -139,6 +141,50 @@ class ProtocolAgentOutput(BaseModel):
     extracted_criteria: list[ProtocolAgentCriterion]
     trace_notes: list[str]
     confidence: float = Field(ge=0, le=1)
+
+
+class PatientIntakeRequest(BaseModel):
+    transcript: str
+    patient_id: str | None = None
+    patient_name: str | None = None
+
+
+class DemoResetRequest(BaseModel):
+    patient_name: str = "Demo Patient"
+
+
+class IntakeFactValue(BaseModel):
+    fact_key: str
+    display_name: str
+    value_type: ValueType
+    value: bool | str | float | None = None
+    display_value: str
+    evidence: str
+    confidence: float = Field(ge=0, le=1)
+
+
+class IntakeMissingFact(BaseModel):
+    fact_key: str
+    display_name: str
+    question: str
+    reason: str
+
+
+class IntakeAgentOutput(BaseModel):
+    patient_summary: str
+    inferred_cancer_track: CancerTrack
+    extracted_facts: list[IntakeFactValue]
+    missing_facts: list[IntakeMissingFact]
+    follow_up_questions: list[str]
+    trace_notes: list[str]
+    confidence: float = Field(ge=0, le=1)
+
+
+class IntakeAgentRun(BaseModel):
+    patient_id: str | None = None
+    agent_mode: Literal["deterministic", "openai_structured"] = "deterministic"
+    transcript_excerpt: str
+    output: IntakeAgentOutput
 
 
 class DashboardSnapshot(BaseModel):

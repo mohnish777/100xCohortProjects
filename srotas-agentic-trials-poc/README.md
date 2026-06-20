@@ -33,6 +33,10 @@ docs/      Step-by-step implementation notes
 - Step 3: `docs/STEP_3_REVIEW.md`
 - Step 4: `docs/STEP_4_REVIEW.md`
 - Step 5: `docs/STEP_5_REVIEW.md`
+- Step 6: `docs/STEP_6_REVIEW.md`
+- Step 7: `docs/STEP_7_REVIEW.md`
+- Step 8: `docs/STEP_8_REVIEW.md`
+- Step 9: `docs/STEP_9_REVIEW.md`
 
 ## Model Defaults
 
@@ -84,4 +88,21 @@ PDF protocol upload:
 curl -X POST \
   -F "file=@/path/to/protocol.pdf" \
   http://localhost:8000/api/demo/upload-protocol
+```
+
+Patient intake extraction:
+
+```bash
+curl -X POST http://localhost:8000/api/demo/run-intake-agent \
+  -H "Content-Type: application/json" \
+  -d '{"patient_id":"p_lung_014","transcript":"I have lung cancer. My report says NSCLC, and the cancer has spread. I had immunotherapy before, but I do not know my PD-L1 TPS."}'
+```
+
+Voice intake uses the browser's speech APIs from the frontend. Open the app on localhost, click
+`Ask question`, allow microphone access, answer the avatar, then click `Extract facts`.
+
+Storage status:
+
+```bash
+curl http://localhost:8000/api/demo/storage-status
 ```
