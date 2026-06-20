@@ -32,6 +32,7 @@ docs/      Step-by-step implementation notes
 - Step 2: `docs/STEP_2_REVIEW.md`
 - Step 3: `docs/STEP_3_REVIEW.md`
 - Step 4: `docs/STEP_4_REVIEW.md`
+- Step 5: `docs/STEP_5_REVIEW.md`
 
 ## Model Defaults
 

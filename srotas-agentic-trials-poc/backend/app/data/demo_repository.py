@@ -8,6 +8,7 @@ from app.domain.models import (
     PatientMatch,
     ProtocolLearningRun,
     ProtocolLearningStep,
+    ProtocolAgentOutput,
     Trial,
     TrialCriterion,
 )
@@ -400,14 +401,51 @@ def get_protocol_learning_run(
     protocol_text: str | None = None,
     source_filename: str | None = None,
     extraction_mode: str = "simulation",
+    agent_output: ProtocolAgentOutput | None = None,
+    agent_mode: str = "deterministic",
 ) -> ProtocolLearningRun:
     protocol_excerpt = make_protocol_excerpt(protocol_text or DEMO_PROTOCOL_EXCERPT)
 
-    extracted_facts = [
-        fact
-        for fact in CLINICAL_FACTS
-        if fact.key in {"histology", "metastatic", "pd_l1_tps"}
-    ]
+    if agent_output:
+        extracted_facts = [
+            ClinicalFact(
+                key=fact.key,
+                display_name=fact.display_name,
+                description=fact.description,
+                value_type=fact.value_type,
+                unit=fact.unit,
+                oncology_track=fact.oncology_track,
+                question_template=fact.question_template,
+                source="protocol_agent",
+            )
+            for fact in agent_output.extracted_facts
+        ]
+        extracted_criteria = [
+            TrialCriterion(
+                id=f"agent_tc_{index + 1:03d}",
+                trial_id=SELECTED_TRIAL.id,
+                criterion_type=criterion.criterion_type,
+                fact_key=criterion.fact_key,
+                operator=criterion.operator,
+                expected_value=criterion.expected_value,
+                display=criterion.display,
+                source_quote=criterion.source_quote,
+                required=criterion.required,
+            )
+            for index, criterion in enumerate(agent_output.extracted_criteria)
+        ]
+        agent_notes = agent_output.trace_notes
+    else:
+        extracted_facts = [
+            fact
+            for fact in CLINICAL_FACTS
+            if fact.key in {"histology", "metastatic", "pd_l1_tps"}
+        ]
+        extracted_criteria = TRIAL_CRITERIA
+        agent_notes = [
+            "Used deterministic demo extraction.",
+            "Mapped protocol text to known clinical facts.",
+        ]
 
     snapshot = get_dashboard_snapshot()
 
@@ -426,7 +464,11 @@ def get_protocol_learning_run(
             order=2,
             agent_name="Fact Registry Agent",
             title="Register required facts",
-            detail="Confirmed histology and metastatic already exist, then registered pd_l1_tps as a reusable numeric fact.",
+            detail=(
+                "Mapped extracted facts into clinical_facts rows without changing the patient table."
+                if agent_output
+                else "Confirmed histology and metastatic already exist, then registered pd_l1_tps as a reusable numeric fact."
+            ),
         ),
         ProtocolLearningStep(
             order=3,
@@ -446,9 +488,11 @@ def get_protocol_learning_run(
         trial=SELECTED_TRIAL,
         source_filename=source_filename,
         extraction_mode=extraction_mode,
+        agent_mode=agent_mode,
+        agent_notes=agent_notes,
         protocol_excerpt=protocol_excerpt,
         extracted_facts=extracted_facts,
-        extracted_criteria=TRIAL_CRITERIA,
+        extracted_criteria=extracted_criteria,
         matched_patients=snapshot.matches,
         follow_up_tasks=snapshot.follow_up_tasks,
         steps=steps,

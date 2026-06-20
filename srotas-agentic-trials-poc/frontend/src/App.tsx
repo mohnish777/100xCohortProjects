@@ -105,6 +105,8 @@ type ProtocolLearningRun = {
   trial: Trial;
   source_filename: string | null;
   extraction_mode: "simulation" | "pdf_text";
+  agent_mode: "deterministic" | "openai_structured";
+  agent_notes: string[];
   protocol_excerpt: string;
   extracted_facts: ClinicalFact[];
   extracted_criteria: TrialCriterion[];
@@ -637,6 +639,11 @@ function App() {
                       ? "PDF text extraction"
                       : "Simulated protocol"}
                   </span>
+                  <span className="rounded-full bg-white px-3 py-1">
+                    {protocolRun.agent_mode === "openai_structured"
+                      ? "OpenAI structured Protocol Agent"
+                      : "Deterministic fallback agent"}
+                  </span>
                   {protocolRun.source_filename ? (
                     <span className="rounded-full bg-white px-3 py-1">
                       {protocolRun.source_filename}
@@ -644,6 +651,18 @@ function App() {
                   ) : null}
                 </div>
                 <p className="text-sm leading-6 text-slate-700">{protocolRun.protocol_excerpt}</p>
+                {protocolRun.agent_notes.length > 0 ? (
+                  <div className="mt-3 rounded border border-sage/20 bg-white p-3">
+                    <div className="text-xs font-semibold uppercase text-slate-500">
+                      Agent trace notes
+                    </div>
+                    <ul className="mt-2 space-y-1 text-sm leading-6 text-slate-600">
+                      {protocolRun.agent_notes.map((note) => (
+                        <li key={note}>{note}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
                 <div className="mt-4 grid gap-3 md:grid-cols-3">
                   {protocolRun.extracted_facts.map((fact) => (
                     <div key={fact.key} className="rounded border border-sage/20 bg-white p-3">

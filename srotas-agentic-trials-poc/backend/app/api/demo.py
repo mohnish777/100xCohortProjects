@@ -2,6 +2,7 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 
 from app.data.demo_repository import get_dashboard_snapshot, get_protocol_learning_run
 from app.domain.models import DashboardSnapshot, ProtocolLearningRun
+from app.services.protocol_agent import extract_protocol_with_agent
 from app.services.protocol_pdf import extract_text_from_pdf_bytes
 
 
@@ -41,8 +42,12 @@ async def upload_protocol(file: UploadFile = File(...)) -> ProtocolLearningRun:
             detail="No selectable text found. Scanned PDFs will need OCR in a later step.",
         )
 
+    agent_output, agent_mode = extract_protocol_with_agent(protocol_text)
+
     return get_protocol_learning_run(
         protocol_text=protocol_text,
         source_filename=filename,
         extraction_mode="pdf_text",
+        agent_output=agent_output,
+        agent_mode=agent_mode,
     )

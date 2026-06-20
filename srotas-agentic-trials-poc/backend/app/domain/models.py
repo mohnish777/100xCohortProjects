@@ -98,12 +98,47 @@ class ProtocolLearningRun(BaseModel):
     trial: Trial
     source_filename: str | None = None
     extraction_mode: Literal["simulation", "pdf_text"] = "simulation"
+    agent_mode: Literal["deterministic", "openai_structured"] = "deterministic"
+    agent_notes: list[str] = Field(default_factory=list)
     protocol_excerpt: str
     extracted_facts: list[ClinicalFact]
     extracted_criteria: list[TrialCriterion]
     matched_patients: list[PatientMatch]
     follow_up_tasks: list[FollowUpTask]
     steps: list[ProtocolLearningStep]
+
+
+class ProtocolAgentFact(BaseModel):
+    key: str
+    display_name: str
+    description: str
+    value_type: ValueType
+    unit: str | None = None
+    oncology_track: CancerTrack
+    question_template: str
+    source_quote: str
+    confidence: float = Field(ge=0, le=1)
+
+
+class ProtocolAgentCriterion(BaseModel):
+    criterion_type: CriterionType
+    fact_key: str
+    operator: str
+    expected_value: bool | str | float | None = None
+    display: str
+    source_quote: str
+    required: bool = True
+    confidence: float = Field(ge=0, le=1)
+
+
+class ProtocolAgentOutput(BaseModel):
+    trial_title: str
+    cancer_track: CancerTrack
+    protocol_summary: str
+    extracted_facts: list[ProtocolAgentFact]
+    extracted_criteria: list[ProtocolAgentCriterion]
+    trace_notes: list[str]
+    confidence: float = Field(ge=0, le=1)
 
 
 class DashboardSnapshot(BaseModel):
