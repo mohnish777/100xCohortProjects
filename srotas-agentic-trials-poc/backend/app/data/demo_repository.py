@@ -11,6 +11,7 @@ from app.domain.models import (
     Trial,
     TrialCriterion,
 )
+from app.services.protocol_pdf import make_protocol_excerpt
 
 
 PATIENTS = [
@@ -388,12 +389,19 @@ def get_dashboard_snapshot() -> DashboardSnapshot:
     )
 
 
-def get_protocol_learning_run() -> ProtocolLearningRun:
-    protocol_excerpt = (
-        "Eligible participants must have metastatic non-small cell lung cancer. "
-        "Tumor PD-L1 expression must be documented with tumor proportion score "
-        "of at least 50 percent."
-    )
+DEMO_PROTOCOL_EXCERPT = (
+    "Eligible participants must have metastatic non-small cell lung cancer. "
+    "Tumor PD-L1 expression must be documented with tumor proportion score "
+    "of at least 50 percent."
+)
+
+
+def get_protocol_learning_run(
+    protocol_text: str | None = None,
+    source_filename: str | None = None,
+    extraction_mode: str = "simulation",
+) -> ProtocolLearningRun:
+    protocol_excerpt = make_protocol_excerpt(protocol_text or DEMO_PROTOCOL_EXCERPT)
 
     extracted_facts = [
         fact
@@ -408,7 +416,11 @@ def get_protocol_learning_run() -> ProtocolLearningRun:
             order=1,
             agent_name="Protocol Agent",
             title="Read protocol text",
-            detail="Found metastatic NSCLC and PD-L1 TPS >= 50 as eligibility requirements.",
+            detail=(
+                "Extracted selectable PDF text and found metastatic NSCLC plus PD-L1 TPS >= 50."
+                if extraction_mode == "pdf_text"
+                else "Found metastatic NSCLC and PD-L1 TPS >= 50 as eligibility requirements."
+            ),
         ),
         ProtocolLearningStep(
             order=2,
@@ -432,6 +444,8 @@ def get_protocol_learning_run() -> ProtocolLearningRun:
 
     return ProtocolLearningRun(
         trial=SELECTED_TRIAL,
+        source_filename=source_filename,
+        extraction_mode=extraction_mode,
         protocol_excerpt=protocol_excerpt,
         extracted_facts=extracted_facts,
         extracted_criteria=TRIAL_CRITERIA,

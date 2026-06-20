@@ -96,6 +96,8 @@ class ProtocolLearningStep(BaseModel):
 
 class ProtocolLearningRun(BaseModel):
     trial: Trial
+    source_filename: str | None = None
+    extraction_mode: Literal["simulation", "pdf_text"] = "simulation"
     protocol_excerpt: str
     extracted_facts: list[ClinicalFact]
     extracted_criteria: list[TrialCriterion]

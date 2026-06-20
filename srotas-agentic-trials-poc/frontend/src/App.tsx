@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import {
   Activity,
   AlertCircle,
@@ -10,6 +10,7 @@ import {
   Search,
   ShieldCheck,
   Sparkles,
+  Upload,
   Workflow,
 } from "lucide-react";
 
@@ -102,6 +103,8 @@ type ProtocolLearningStep = {
 
 type ProtocolLearningRun = {
   trial: Trial;
+  source_filename: string | null;
+  extraction_mode: "simulation" | "pdf_text";
   protocol_excerpt: string;
   extracted_facts: ClinicalFact[];
   extracted_criteria: TrialCriterion[];
@@ -356,6 +359,7 @@ function App() {
   const [protocolRunState, setProtocolRunState] = useState<"idle" | "running" | "done" | "error">(
     "idle",
   );
+  const [protocolUploadError, setProtocolUploadError] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -402,6 +406,7 @@ function App() {
 
   async function runProtocolLearning() {
     setProtocolRunState("running");
+    setProtocolUploadError(null);
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/demo/run-protocol-learning`, {
@@ -417,6 +422,40 @@ function App() {
       setProtocolRunState("done");
     } catch (error) {
       setProtocolRunState("error");
+    }
+  }
+
+  async function uploadProtocol(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file) {
+      return;
+    }
+
+    setProtocolRunState("running");
+    setProtocolUploadError(null);
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/demo/upload-protocol`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { detail?: string } | null;
+        throw new Error(body?.detail ?? `API returned ${response.status}`);
+      }
+
+      const data = (await response.json()) as ProtocolLearningRun;
+      setProtocolRun(data);
+      setProtocolRunState("done");
+    } catch (error) {
+      setProtocolRunState("error");
+      setProtocolUploadError(error instanceof Error ? error.message : "Protocol upload failed.");
     }
   }
 
@@ -532,14 +571,27 @@ function App() {
                 Protocol-derived facts drive matching and missing-data closure.
               </p>
             </div>
-            <button
-              onClick={runProtocolLearning}
-              disabled={protocolRunState === "running"}
-              className="inline-flex h-10 items-center gap-2 rounded border border-slate-300 px-4 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <Search size={18} />
-              {protocolRunState === "running" ? "Extracting" : "Run protocol"}
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded border border-slate-300 px-4 text-sm font-semibold text-slate-700">
+                <Upload size={18} />
+                Upload PDF
+                <input
+                  className="sr-only"
+                  type="file"
+                  accept="application/pdf"
+                  onChange={uploadProtocol}
+                  disabled={protocolRunState === "running"}
+                />
+              </label>
+              <button
+                onClick={runProtocolLearning}
+                disabled={protocolRunState === "running"}
+                className="inline-flex h-10 items-center gap-2 rounded border border-slate-300 px-4 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Search size={18} />
+                {protocolRunState === "running" ? "Extracting" : "Run demo"}
+              </button>
+            </div>
           </div>
 
           <div className="mt-5 space-y-4">
@@ -579,6 +631,18 @@ function App() {
                   <Sparkles size={18} />
                   Protocol learning result
                 </div>
+                <div className="mb-3 flex flex-wrap gap-2 text-xs font-semibold text-slate-500">
+                  <span className="rounded-full bg-white px-3 py-1">
+                    {protocolRun.extraction_mode === "pdf_text"
+                      ? "PDF text extraction"
+                      : "Simulated protocol"}
+                  </span>
+                  {protocolRun.source_filename ? (
+                    <span className="rounded-full bg-white px-3 py-1">
+                      {protocolRun.source_filename}
+                    </span>
+                  ) : null}
+                </div>
                 <p className="text-sm leading-6 text-slate-700">{protocolRun.protocol_excerpt}</p>
                 <div className="mt-4 grid gap-3 md:grid-cols-3">
                   {protocolRun.extracted_facts.map((fact) => (
@@ -594,7 +658,8 @@ function App() {
               </div>
             ) : protocolRunState === "error" ? (
               <div className="rounded border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
-                Protocol run failed. Check that the FastAPI backend is running on port 8000.
+                {protocolUploadError ??
+                  "Protocol run failed. Check that the FastAPI backend is running on port 8000."}
               </div>
             ) : null}
           </div>
