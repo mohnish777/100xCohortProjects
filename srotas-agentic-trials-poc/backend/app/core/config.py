@@ -8,10 +8,12 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-5.5"
     openai_reasoning_effort: str = "medium"
     openai_demo_reasoning_effort: str = "high"
+    openai_timeout_seconds: float = 25
     elevenlabs_api_key: str | None = None
     supabase_url: str | None = None
     supabase_service_role_key: str | None = None
     allowed_origins: str = "http://localhost:5173"
+    log_level: str = "INFO"
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -34,4 +36,3 @@ def get_settings() -> Settings:
 
 
 settings = get_settings()
-

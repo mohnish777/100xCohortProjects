@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -5,6 +7,18 @@ from app.api.demo import router as demo_router
 from app.api.health import router as health_router
 from app.core.config import settings
 
+
+logging.basicConfig(
+    level=getattr(logging, settings.log_level.upper(), logging.INFO),
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+)
+logger = logging.getLogger(__name__)
+logger.info(
+    "Starting Srotas API openai_key_configured=%s openai_model=%s log_level=%s",
+    bool(settings.openai_api_key),
+    settings.openai_model,
+    settings.log_level,
+)
 
 app = FastAPI(
     title="Srotas Agentic Trials API",
