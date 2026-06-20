@@ -16,7 +16,11 @@ from app.domain.models import (
     Trial,
     TrialCriterion,
 )
-from app.data.supabase_persistence import persist_dashboard_snapshot, reset_persisted_session
+from app.data.supabase_persistence import (
+    load_persisted_dashboard,
+    persist_dashboard_snapshot,
+    reset_persisted_session,
+)
 from app.services.protocol_pdf import make_protocol_excerpt
 
 
@@ -133,6 +137,7 @@ class DemoSession:
     protocol_agent_mode: str = "deterministic"
     protocol_agent_notes: list[str] = field(default_factory=list)
     protocol_hash: str | None = None
+    hydrated_from_supabase: bool = False
 
 
 @dataclass
@@ -165,11 +170,13 @@ _session = DemoSession(patient=_new_patient())
 def reset_demo_session(patient_name: str = "Demo Patient") -> DashboardSnapshot:
     global _session
     _session = DemoSession(patient=_new_patient(patient_name))
+    _session.hydrated_from_supabase = True
     reset_persisted_session(_session.patient, _session.clinical_facts)
     return get_dashboard_snapshot()
 
 
 def get_dashboard_snapshot() -> DashboardSnapshot:
+    _hydrate_from_supabase_once()
     matches = _match_patients()
     follow_up_tasks = _build_follow_up_tasks(matches)
 
@@ -233,6 +240,22 @@ def store_patient_intake(
 
     _session.patient_fact_values = list(existing_by_key.values())
     _persist_current_snapshot()
+
+
+def _hydrate_from_supabase_once() -> None:
+    if _session.hydrated_from_supabase or _session.patient_fact_values or _session.trial_criteria:
+        return
+
+    persisted = load_persisted_dashboard()
+    _session.hydrated_from_supabase = True
+    if not persisted:
+        return
+
+    _session.patient = persisted.patients[0]
+    _session.clinical_facts = persisted.clinical_facts or list(BASE_CLINICAL_FACTS)
+    _session.patient_fact_values = persisted.patient_fact_values
+    _session.selected_trial = persisted.selected_trial
+    _session.trial_criteria = persisted.trial_criteria
 
 
 def get_protocol_learning_run(

@@ -40,7 +40,7 @@ Known fact registry keys:
 """
 
 
-def select_protocol_context(protocol_text: str, max_chars: int = 14000) -> str:
+def select_protocol_context(protocol_text: str, max_chars: int = 9000) -> str:
     normalized = "\n".join(line.strip() for line in protocol_text.splitlines() if line.strip())
     lower = normalized.lower()
     keywords = [
@@ -63,7 +63,7 @@ def select_protocol_context(protocol_text: str, max_chars: int = 14000) -> str:
         index = lower.find(keyword)
         if index >= 0:
             start = max(index - 1400, 0)
-            end = min(index + 2600, len(normalized))
+            end = min(index + 1800, len(normalized))
             windows.append(normalized[start:end])
 
     if not windows:
@@ -102,6 +102,7 @@ def extract_protocol_with_agent(protocol_text: str) -> tuple[ProtocolAgentOutput
         client = OpenAI(
             api_key=settings.openai_api_key,
             timeout=settings.openai_timeout_seconds,
+            max_retries=0,
         )
         completion = client.beta.chat.completions.parse(
             model=settings.openai_model,

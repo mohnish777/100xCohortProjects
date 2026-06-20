@@ -113,6 +113,7 @@ def extract_intake_with_agent(transcript: str) -> tuple[IntakeAgentOutput, str]:
         client = OpenAI(
             api_key=settings.openai_api_key,
             timeout=settings.openai_timeout_seconds,
+            max_retries=0,
         )
         completion = client.beta.chat.completions.parse(
             model=settings.openai_model,

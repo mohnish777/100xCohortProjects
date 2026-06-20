@@ -12,7 +12,7 @@ from app.data.demo_repository import (
     reset_demo_session,
     store_patient_intake,
 )
-from app.data.supabase_persistence import storage_status
+from app.data.supabase_persistence import get_persisted_protocol_extraction, storage_status
 from app.domain.models import (
     DashboardSnapshot,
     DemoResetRequest,
@@ -170,6 +170,30 @@ async def upload_protocol(file: UploadFile = File(...)) -> ProtocolLearningRun:
             extraction_mode="pdf_text",
             agent_output=cached_protocol.agent_output,
             agent_mode=cached_protocol.agent_mode,
+            protocol_cache_status="cached",
+            protocol_hash=protocol_hash,
+        )
+
+    persisted_protocol = get_persisted_protocol_extraction(protocol_hash)
+    if persisted_protocol:
+        logger.info(
+            "Protocol upload Supabase extraction hit filename=%s protocol_hash=%s",
+            filename,
+            protocol_hash,
+        )
+        remember_protocol_extraction(
+            protocol_hash=protocol_hash,
+            source_filename=persisted_protocol["source_filename"],
+            protocol_text=persisted_protocol["protocol_text"],
+            agent_output=persisted_protocol["agent_output"],
+            agent_mode=persisted_protocol["agent_mode"],
+        )
+        return get_protocol_learning_run(
+            protocol_text=persisted_protocol["protocol_text"],
+            source_filename=filename,
+            extraction_mode="pdf_text",
+            agent_output=persisted_protocol["agent_output"],
+            agent_mode=persisted_protocol["agent_mode"],
             protocol_cache_status="cached",
             protocol_hash=protocol_hash,
         )

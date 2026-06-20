@@ -9,6 +9,9 @@ from app.domain.models import (
     FollowUpTask,
     Patient,
     PatientFactValue,
+    ProtocolAgentCriterion,
+    ProtocolAgentFact,
+    ProtocolAgentOutput,
     Trial,
     TrialCriterion,
 )
@@ -54,6 +57,142 @@ def storage_status() -> dict[str, object]:
         "schema_ready": schema_ready,
         "schema_error": schema_error,
     }
+
+
+def get_persisted_protocol_extraction(protocol_hash: str):
+    client = _supabase_client()
+    if client is None:
+        return None
+
+    try:
+        response = (
+            client.table("protocol_extractions")
+            .select("*")
+            .eq("protocol_hash", protocol_hash)
+            .limit(1)
+            .execute()
+        )
+    except Exception as exc:
+        logger.warning(
+            "Supabase protocol extraction lookup failed protocol_hash=%s error_type=%s error=%s",
+            protocol_hash,
+            type(exc).__name__,
+            exc,
+        )
+        return None
+
+    if not response.data:
+        return None
+
+    row = response.data[0]
+    try:
+        agent_output = ProtocolAgentOutput(
+            trial_title=row.get("trial_title") or "Uploaded Oncology Protocol",
+            cancer_track=row.get("cancer_track") or "mixed",
+            protocol_summary=row.get("protocol_summary")
+            or "Loaded previously extracted protocol criteria from Supabase.",
+            extracted_facts=[
+                ProtocolAgentFact.model_validate(fact)
+                for fact in row.get("extracted_facts", [])
+            ],
+            extracted_criteria=[
+                ProtocolAgentCriterion.model_validate(criterion)
+                for criterion in row.get("extracted_criteria", [])
+            ],
+            trace_notes=[
+                "Loaded existing extraction from Supabase protocol_extractions.",
+                "Skipped model extraction because protocol hash already exists.",
+            ],
+            confidence=1.0,
+        )
+        return {
+            "protocol_hash": protocol_hash,
+            "source_filename": row.get("source_filename") or "uploaded-protocol.pdf",
+            "protocol_text": row.get("protocol_excerpt") or "",
+            "agent_output": agent_output,
+            "agent_mode": row.get("agent_mode") or "openai_structured",
+        }
+    except Exception as exc:
+        logger.warning(
+            "Supabase protocol extraction row parse failed protocol_hash=%s error_type=%s error=%s",
+            protocol_hash,
+            type(exc).__name__,
+            exc,
+        )
+        return None
+
+
+def load_persisted_dashboard() -> DashboardSnapshot | None:
+    client = _supabase_client()
+    if client is None:
+        return None
+
+    try:
+        patient_response = (
+            client.table("patients")
+            .select("*")
+            .eq("id", _active_patient_id())
+            .limit(1)
+            .execute()
+        )
+        if not patient_response.data:
+            return None
+
+        facts_response = client.table("clinical_facts").select("*").execute()
+        patient_fact_response = (
+            client.table("patient_fact_values")
+            .select("*")
+            .eq("patient_id", _active_patient_id())
+            .execute()
+        )
+        trial_response = (
+            client.table("trials")
+            .select("*")
+            .eq("id", _active_trial_id())
+            .limit(1)
+            .execute()
+        )
+        criteria_response = (
+            client.table("trial_criteria")
+            .select("*")
+            .eq("trial_id", _active_trial_id())
+            .execute()
+        )
+
+        patient = _patient_from_row(patient_response.data[0])
+        trial = (
+            _trial_from_row(trial_response.data[0])
+            if trial_response.data
+            else Trial(
+                id=_active_trial_id(),
+                title="No protocol uploaded yet",
+                sponsor="Srotas Demo Network",
+                cancer_track="mixed",
+                protocol_summary="Upload a trial protocol PDF to teach the system what facts matter.",
+            )
+        )
+        clinical_facts = [_clinical_fact_from_row(row) for row in facts_response.data]
+        patient_fact_values = [_patient_fact_from_row(row) for row in patient_fact_response.data]
+        trial_criteria = [_trial_criterion_from_row(row) for row in criteria_response.data]
+
+        return DashboardSnapshot(
+            patients=[patient],
+            clinical_facts=clinical_facts,
+            patient_fact_values=patient_fact_values,
+            selected_trial=trial,
+            trial_criteria=trial_criteria,
+            matches=[],
+            follow_up_tasks=[],
+            generated_sql="-- Loaded from Supabase; matching is recomputed in memory.",
+            agent_activity=[],
+        )
+    except Exception as exc:
+        logger.warning(
+            "Supabase dashboard load failed error_type=%s error=%s",
+            type(exc).__name__,
+            exc,
+        )
+        return None
 
 
 def reset_persisted_session(patient: Patient, clinical_facts: list[ClinicalFact]) -> None:
@@ -126,6 +265,10 @@ def persist_dashboard_snapshot(
 
 def _active_trial_id() -> str:
     return "00000000-0000-4000-8000-000000000101"
+
+
+def _active_patient_id() -> str:
+    return "00000000-0000-4000-8000-000000000001"
 
 
 def _upsert_patient(client, patient: Patient) -> None:
@@ -209,18 +352,41 @@ def _upsert_protocol_extraction(
     if not protocol_hash:
         return
 
-    client.table("protocol_extractions").upsert(
-        {
-            "protocol_hash": protocol_hash,
-            "source_filename": source_filename or "uploaded-protocol.pdf",
-            "trial_id": snapshot.selected_trial.id,
-            "agent_mode": agent_mode or "unknown",
-            "extracted_facts": [fact.model_dump() for fact in snapshot.clinical_facts],
-            "extracted_criteria": [criterion.model_dump() for criterion in snapshot.trial_criteria],
-            "protocol_excerpt": protocol_excerpt,
-        },
-        on_conflict="protocol_hash",
-    ).execute()
+    row = {
+        "protocol_hash": protocol_hash,
+        "source_filename": source_filename or "uploaded-protocol.pdf",
+        "trial_id": snapshot.selected_trial.id,
+        "agent_mode": agent_mode or "unknown",
+        "trial_title": snapshot.selected_trial.title,
+        "cancer_track": snapshot.selected_trial.cancer_track,
+        "protocol_summary": snapshot.selected_trial.protocol_summary,
+        "extracted_facts": [fact.model_dump() for fact in snapshot.clinical_facts],
+        "extracted_criteria": [criterion.model_dump() for criterion in snapshot.trial_criteria],
+        "protocol_excerpt": protocol_excerpt,
+    }
+
+    try:
+        client.table("protocol_extractions").upsert(
+            row,
+            on_conflict="protocol_hash",
+        ).execute()
+    except Exception as exc:
+        if not _is_missing_optional_protocol_column_error(exc):
+            raise
+
+        logger.warning(
+            "Supabase protocol_extractions optional columns missing; writing compatibility row error=%s",
+            exc,
+        )
+        compatibility_row = {
+            key: value
+            for key, value in row.items()
+            if key not in {"trial_title", "cancer_track", "protocol_summary"}
+        }
+        client.table("protocol_extractions").upsert(
+            compatibility_row,
+            on_conflict="protocol_hash",
+        ).execute()
 
 
 def _replace_follow_up_tasks(
@@ -331,3 +497,112 @@ def _follow_up_row(task: FollowUpTask) -> dict[str, object]:
 
 def _stable_uuid(value: str) -> str:
     return str(uuid5(NAMESPACE_URL, value))
+
+
+def _is_missing_optional_protocol_column_error(exc: Exception) -> bool:
+    message = str(exc)
+    return (
+        "protocol_extractions" in message
+        and any(
+            column in message
+            for column in ["trial_title", "cancer_track", "protocol_summary"]
+        )
+    )
+
+
+def _patient_from_row(row: dict[str, object]) -> Patient:
+    return Patient(
+        id=str(row["id"]),
+        display_name=str(row["display_name"]),
+        anonymized_code=str(row["anonymized_code"]),
+        age_band=str(row.get("age_band") or "Not captured"),
+        sex=str(row.get("sex") or "Not captured"),
+        cancer_track=row.get("cancer_track") or "mixed",
+    )
+
+
+def _clinical_fact_from_row(row: dict[str, object]) -> ClinicalFact:
+    return ClinicalFact(
+        key=str(row["key"]),
+        display_name=str(row["display_name"]),
+        description=str(row.get("description") or ""),
+        value_type=row.get("value_type") or "text",
+        unit=row.get("unit"),
+        oncology_track=row.get("oncology_track") or "mixed",
+        question_template=str(row.get("question_template") or ""),
+        source=str(row.get("source") or "supabase"),
+    )
+
+
+def _patient_fact_from_row(row: dict[str, object]) -> PatientFactValue:
+    value = (
+        row.get("value_boolean")
+        if row.get("value_boolean") is not None
+        else row.get("value_numeric")
+        if row.get("value_numeric") is not None
+        else row.get("value_text")
+        if row.get("value_text") is not None
+        else row.get("value_date")
+    )
+
+    return PatientFactValue(
+        patient_id=str(row["patient_id"]),
+        fact_key=str(row["fact_key"]),
+        value=value,
+        display_value=_display_value(str(row["fact_key"]), value),
+        evidence=str(row.get("evidence") or "Loaded from Supabase."),
+        confidence=float(row.get("confidence") or 0.85),
+    )
+
+
+def _trial_from_row(row: dict[str, object]) -> Trial:
+    return Trial(
+        id=str(row["id"]),
+        title=str(row["title"]),
+        sponsor=str(row.get("sponsor") or ""),
+        cancer_track=row.get("cancer_track") or "mixed",
+        protocol_summary=str(row.get("protocol_summary") or ""),
+    )
+
+
+def _trial_criterion_from_row(row: dict[str, object]) -> TrialCriterion:
+    expected_value = (
+        row.get("value_boolean")
+        if row.get("value_boolean") is not None
+        else row.get("value_numeric")
+        if row.get("value_numeric") is not None
+        else row.get("value_text")
+        if row.get("value_text") is not None
+        else row.get("value_date")
+    )
+
+    return TrialCriterion(
+        id=str(row["id"]),
+        trial_id=str(row["trial_id"]),
+        criterion_type=row.get("criterion_type") or "inclusion",
+        fact_key=str(row["fact_key"]),
+        operator=str(row["operator"]),
+        expected_value=expected_value,
+        display=_criterion_display(str(row["fact_key"]), str(row["operator"]), expected_value),
+        source_quote=str(row.get("source_quote") or "Loaded from Supabase."),
+        required=bool(row.get("required", True)),
+    )
+
+
+def _display_value(fact_key: str, value: object) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if fact_key == "pd_l1_tps" and value is not None:
+        return f"{float(value):g}%"
+    if fact_key == "psa" and value is not None:
+        return f"{float(value):g} ng/mL"
+    return str(value)
+
+
+def _criterion_display(fact_key: str, operator: str, expected_value: object) -> str:
+    display_name = fact_key.replace("_", " ").title()
+    if operator == "is_known":
+        return f"{display_name} must be documented"
+    if isinstance(expected_value, bool):
+        return f"{display_name} is {'true' if expected_value else 'false'}"
+    return f"{display_name} {operator} {expected_value}"

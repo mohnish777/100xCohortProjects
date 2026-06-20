@@ -37,6 +37,7 @@ docs/      Step-by-step implementation notes
 - Step 7: `docs/STEP_7_REVIEW.md`
 - Step 8: `docs/STEP_8_REVIEW.md`
 - Step 9: `docs/STEP_9_REVIEW.md`
+- Step 10: `docs/STEP_10_REVIEW.md`
 
 ## Model Defaults
 
