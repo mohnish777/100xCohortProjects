@@ -165,6 +165,8 @@ type StorageStatus = {
   storage_mode: "memory_only" | "supabase_dual_write";
   supabase_url_configured: boolean;
   supabase_service_role_key_configured: boolean;
+  schema_ready: boolean;
+  schema_error: string | null;
 };
 
 type BrowserSpeechRecognitionEvent = {
@@ -530,6 +532,8 @@ function App() {
   const possibleCount = snapshot.matches.filter(
     (match) => match.status === "possible_match",
   ).length;
+  const primaryMatch = snapshot.matches[0];
+  const primaryMissingFacts = primaryMatch?.missing_fact_keys ?? [];
 
   function syncProtocolRunWithSnapshot(nextSnapshot: DashboardSnapshot) {
     setProtocolRun((currentRun) => {
@@ -847,7 +851,81 @@ function App() {
         <MetricCard label="Patients" value={snapshot.patients.length.toString()} />
         <MetricCard label="Clinical facts" value={snapshot.clinical_facts.length.toString()} />
         <MetricCard label="Eligible" value={eligibleCount.toString()} />
-        <MetricCard label="Need follow-up" value={possibleCount.toString()} />
+        <MetricCard label="Possible matches" value={possibleCount.toString()} />
+      </section>
+
+      <section className="mx-auto max-w-7xl px-6 pt-4">
+        <div className="grid gap-4 rounded border border-slate-200 bg-white p-4 shadow-sm lg:grid-cols-[1.15fr_0.85fr]">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Trial readiness
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-3">
+              <div className="text-xl font-semibold">
+                {primaryMatch ? primaryMatch.patient_name : activePatient?.display_name ?? patientName}
+              </div>
+              {primaryMatch ? (
+                <span
+                  className={`rounded-full border px-3 py-1 text-xs font-semibold ${matchStyles[primaryMatch.status]}`}
+                >
+                  {formatStatus(primaryMatch.status)}
+                </span>
+              ) : (
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
+                  waiting for protocol
+                </span>
+              )}
+            </div>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              {primaryMatch?.explanation ??
+                "Capture patient facts and upload a protocol to compute trial readiness."}
+            </p>
+            {primaryMissingFacts.length > 0 ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {primaryMissingFacts.map((factKey) => (
+                  <span
+                    key={factKey}
+                    className="inline-flex items-center gap-1 rounded bg-amber/15 px-2 py-1 text-xs font-semibold text-amber"
+                  >
+                    <AlertCircle size={13} />
+                    Missing {factByKey.get(factKey)?.display_name ?? factKey}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+          </div>
+          <div className="rounded bg-mist p-4">
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Persistence
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <span
+                className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                  storageStatus?.storage_mode === "supabase_dual_write"
+                    ? "bg-sage/15 text-sage"
+                    : "bg-slate-100 text-slate-600"
+                }`}
+              >
+                {storageStatus?.storage_mode === "supabase_dual_write"
+                  ? "Supabase dual-write"
+                  : "Memory storage"}
+              </span>
+              <span
+                className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                  storageStatus?.schema_ready
+                    ? "bg-emerald-100 text-emerald-800"
+                    : "bg-amber/15 text-amber"
+                }`}
+              >
+                {storageStatus?.schema_ready ? "Schema ready" : "Schema pending"}
+              </span>
+            </div>
+            <p className="mt-3 text-sm leading-6 text-slate-600">
+              Patient facts, criteria, match runs, and follow-up tasks are written to Supabase when
+              available.
+            </p>
+          </div>
+        </div>
       </section>
 
       <section className="mx-auto grid max-w-7xl gap-6 px-6 py-6 lg:grid-cols-[1.05fr_0.95fr]">
@@ -1136,18 +1214,24 @@ function App() {
                 Extracted inclusion criteria
               </div>
               <div className="space-y-2">
-                {snapshot.trial_criteria.map((criterion) => (
-                  <div
-                    key={criterion.id}
-                    className="flex items-start justify-between gap-3 rounded bg-slate-50 px-3 py-2"
-                  >
-                    <div>
-                      <div className="text-sm font-medium">{criterion.display}</div>
-                      <div className="mt-1 text-xs text-slate-500">{criterion.source_quote}</div>
+                {snapshot.trial_criteria.length > 0 ? (
+                  snapshot.trial_criteria.map((criterion) => (
+                    <div
+                      key={criterion.id}
+                      className="flex items-start justify-between gap-3 rounded bg-slate-50 px-3 py-2"
+                    >
+                      <div>
+                        <div className="text-sm font-medium">{criterion.display}</div>
+                        <div className="mt-1 text-xs text-slate-500">{criterion.source_quote}</div>
+                      </div>
+                      <code className="shrink-0">{criterion.fact_key}</code>
                     </div>
-                    <code className="shrink-0">{criterion.fact_key}</code>
+                  ))
+                ) : (
+                  <div className="rounded border border-dashed border-slate-300 bg-slate-50 p-4 text-sm leading-6 text-slate-500">
+                    Upload a PDF or run the demo protocol to populate extracted criteria.
                   </div>
-                ))}
+                )}
               </div>
             </div>
 
@@ -1256,32 +1340,33 @@ function App() {
           <div className="space-y-3">
             {snapshot.matches.length > 0 ? (
               snapshot.matches.map((match) => (
-              <div key={match.patient_id} className="rounded border border-slate-200 p-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <div className="font-semibold">{match.patient_name}</div>
-                    <div className="mt-1 text-sm text-slate-500">{match.explanation}</div>
+                <div
+                  key={match.patient_id}
+                  className={`rounded border p-4 ${matchStyles[match.status]}`}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <div className="font-semibold">{match.patient_name}</div>
+                      <div className="mt-1 text-sm opacity-80">{match.explanation}</div>
+                    </div>
+                    <span className="rounded-full border border-current bg-white/70 px-3 py-1 text-xs font-semibold">
+                      {formatStatus(match.status)}
+                    </span>
                   </div>
-                  <span
-                    className={`rounded-full border px-3 py-1 text-xs font-semibold ${matchStyles[match.status]}`}
-                  >
-                    {formatStatus(match.status)}
-                  </span>
+                  {match.missing_fact_keys.length > 0 ? (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {match.missing_fact_keys.map((factKey) => (
+                        <span
+                          key={factKey}
+                          className="inline-flex items-center gap-1 rounded bg-white/80 px-2 py-1 text-xs font-semibold"
+                        >
+                          <AlertCircle size={13} />
+                          Missing {factByKey.get(factKey)?.display_name ?? factKey}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
-                {match.missing_fact_keys.length > 0 ? (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {match.missing_fact_keys.map((factKey) => (
-                      <span
-                        key={factKey}
-                        className="inline-flex items-center gap-1 rounded bg-amber/15 px-2 py-1 text-xs font-semibold text-amber"
-                      >
-                        <AlertCircle size={13} />
-                        Missing {factByKey.get(factKey)?.display_name ?? factKey}
-                      </span>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
               ))
             ) : (
               <div className="rounded border border-dashed border-slate-300 p-4 text-sm leading-6 text-slate-500">
@@ -1312,28 +1397,33 @@ function App() {
           <div className="mt-4 space-y-3">
             {snapshot.follow_up_tasks.length > 0 ? (
               snapshot.follow_up_tasks.map((task) => (
-              <div
-                key={task.id}
-                className="rounded border border-amber-200 bg-amber-50 p-4 text-amber-900"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="font-semibold">{task.patient_name}</div>
-                  <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold uppercase">
-                    {task.priority}
-                  </span>
-                </div>
-                <p className="mt-2 text-sm leading-6">{task.question}</p>
-                <div className="mt-3 text-xs font-semibold">
-                  Stores answer back as <code>{task.fact_key}</code> in patient_fact_values
-                </div>
-                <button
-                  onClick={() => startFollowUpCall(task)}
-                  className="mt-3 inline-flex h-9 items-center gap-2 rounded bg-amber px-3 text-sm font-semibold text-white"
+                <div
+                  key={task.id}
+                  className="rounded border border-amber-200 bg-amber-50 p-4 text-amber-900"
                 >
-                  <Mic size={16} />
-                  Call patient
-                </button>
-              </div>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <div className="font-semibold">{task.patient_name}</div>
+                      <div className="mt-1 text-xs font-semibold uppercase">
+                        Missing {task.fact_display_name}
+                      </div>
+                    </div>
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold uppercase">
+                      {task.priority}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-sm leading-6">{task.question}</p>
+                  <div className="mt-3 text-xs font-semibold">
+                    Stores answer back as <code>{task.fact_key}</code> in patient_fact_values
+                  </div>
+                  <button
+                    onClick={() => startFollowUpCall(task)}
+                    className="mt-3 inline-flex h-9 items-center gap-2 rounded bg-amber px-3 text-sm font-semibold text-white"
+                  >
+                    <Mic size={16} />
+                    Call patient
+                  </button>
+                </div>
               ))
             ) : (
               <div className="rounded border border-dashed border-slate-300 p-4 text-sm leading-6 text-slate-500">
