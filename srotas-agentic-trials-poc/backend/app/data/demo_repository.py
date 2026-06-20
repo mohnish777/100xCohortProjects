@@ -6,6 +6,8 @@ from app.domain.models import (
     Patient,
     PatientFactValue,
     PatientMatch,
+    ProtocolLearningRun,
+    ProtocolLearningStep,
     Trial,
     TrialCriterion,
 )
@@ -383,4 +385,57 @@ def get_dashboard_snapshot() -> DashboardSnapshot:
         follow_up_tasks=follow_up_tasks,
         generated_sql=GENERATED_SQL,
         agent_activity=agent_activity,
+    )
+
+
+def get_protocol_learning_run() -> ProtocolLearningRun:
+    protocol_excerpt = (
+        "Eligible participants must have metastatic non-small cell lung cancer. "
+        "Tumor PD-L1 expression must be documented with tumor proportion score "
+        "of at least 50 percent."
+    )
+
+    extracted_facts = [
+        fact
+        for fact in CLINICAL_FACTS
+        if fact.key in {"histology", "metastatic", "pd_l1_tps"}
+    ]
+
+    snapshot = get_dashboard_snapshot()
+
+    steps = [
+        ProtocolLearningStep(
+            order=1,
+            agent_name="Protocol Agent",
+            title="Read protocol text",
+            detail="Found metastatic NSCLC and PD-L1 TPS >= 50 as eligibility requirements.",
+        ),
+        ProtocolLearningStep(
+            order=2,
+            agent_name="Fact Registry Agent",
+            title="Register required facts",
+            detail="Confirmed histology and metastatic already exist, then registered pd_l1_tps as a reusable numeric fact.",
+        ),
+        ProtocolLearningStep(
+            order=3,
+            agent_name="Matching Agent",
+            title="Compare facts to patients",
+            detail="Found one eligible patient and one possible match with PD-L1 TPS missing.",
+        ),
+        ProtocolLearningStep(
+            order=4,
+            agent_name="Voice Follow-up Agent",
+            title="Create missing-data task",
+            detail="Queued a follow-up question for Patient L-014 to collect PD-L1 TPS.",
+        ),
+    ]
+
+    return ProtocolLearningRun(
+        trial=SELECTED_TRIAL,
+        protocol_excerpt=protocol_excerpt,
+        extracted_facts=extracted_facts,
+        extracted_criteria=TRIAL_CRITERIA,
+        matched_patients=snapshot.matches,
+        follow_up_tasks=snapshot.follow_up_tasks,
+        steps=steps,
     )

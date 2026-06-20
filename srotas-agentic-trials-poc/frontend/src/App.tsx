@@ -93,6 +93,23 @@ type AgentActivity = {
   status: "done" | "active" | "queued";
 };
 
+type ProtocolLearningStep = {
+  order: number;
+  agent_name: string;
+  title: string;
+  detail: string;
+};
+
+type ProtocolLearningRun = {
+  trial: Trial;
+  protocol_excerpt: string;
+  extracted_facts: ClinicalFact[];
+  extracted_criteria: TrialCriterion[];
+  matched_patients: PatientMatch[];
+  follow_up_tasks: FollowUpTask[];
+  steps: ProtocolLearningStep[];
+};
+
 type DashboardSnapshot = {
   patients: Patient[];
   clinical_facts: ClinicalFact[];
@@ -335,6 +352,10 @@ const agentStatusStyles: Record<AgentActivity["status"], string> = {
 function App() {
   const [snapshot, setSnapshot] = useState<DashboardSnapshot>(fallbackSnapshot);
   const [apiState, setApiState] = useState<"loading" | "live" | "fallback">("loading");
+  const [protocolRun, setProtocolRun] = useState<ProtocolLearningRun | null>(null);
+  const [protocolRunState, setProtocolRunState] = useState<"idle" | "running" | "done" | "error">(
+    "idle",
+  );
 
   useEffect(() => {
     const controller = new AbortController();
@@ -378,6 +399,26 @@ function App() {
   const possibleCount = snapshot.matches.filter(
     (match) => match.status === "possible_match",
   ).length;
+
+  async function runProtocolLearning() {
+    setProtocolRunState("running");
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/demo/run-protocol-learning`, {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        throw new Error(`API returned ${response.status}`);
+      }
+
+      const data = (await response.json()) as ProtocolLearningRun;
+      setProtocolRun(data);
+      setProtocolRunState("done");
+    } catch (error) {
+      setProtocolRunState("error");
+    }
+  }
 
   return (
     <main className="min-h-screen bg-[#f7faf9] text-ink">
@@ -491,9 +532,13 @@ function App() {
                 Protocol-derived facts drive matching and missing-data closure.
               </p>
             </div>
-            <button className="inline-flex h-10 items-center gap-2 rounded border border-slate-300 px-4 text-sm font-semibold text-slate-700">
+            <button
+              onClick={runProtocolLearning}
+              disabled={protocolRunState === "running"}
+              className="inline-flex h-10 items-center gap-2 rounded border border-slate-300 px-4 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
               <Search size={18} />
-              Run match
+              {protocolRunState === "running" ? "Extracting" : "Run protocol"}
             </button>
           </div>
 
@@ -527,9 +572,54 @@ function App() {
                 ))}
               </div>
             </div>
+
+            {protocolRun ? (
+              <div className="rounded border border-sage/30 bg-sage/5 p-4">
+                <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-sage">
+                  <Sparkles size={18} />
+                  Protocol learning result
+                </div>
+                <p className="text-sm leading-6 text-slate-700">{protocolRun.protocol_excerpt}</p>
+                <div className="mt-4 grid gap-3 md:grid-cols-3">
+                  {protocolRun.extracted_facts.map((fact) => (
+                    <div key={fact.key} className="rounded border border-sage/20 bg-white p-3">
+                      <div className="text-xs font-semibold uppercase text-slate-500">
+                        {fact.value_type}
+                      </div>
+                      <div className="mt-1 text-sm font-semibold">{fact.display_name}</div>
+                      <code className="mt-2 inline-block">{fact.key}</code>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : protocolRunState === "error" ? (
+              <div className="rounded border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+                Protocol run failed. Check that the FastAPI backend is running on port 8000.
+              </div>
+            ) : null}
           </div>
         </div>
       </section>
+
+      {protocolRun ? (
+        <section className="mx-auto max-w-7xl px-6 pb-6">
+          <div className="rounded border border-slate-200 bg-white p-5 shadow-sm">
+            <h2 className="text-lg font-semibold">How The Protocol Taught The System</h2>
+            <div className="mt-4 grid gap-3 md:grid-cols-4">
+              {protocolRun.steps.map((step) => (
+                <div key={step.order} className="rounded border border-slate-200 p-4">
+                  <div className="mb-3 flex h-8 w-8 items-center justify-center rounded bg-sage/10 text-sm font-bold text-sage">
+                    {step.order}
+                  </div>
+                  <div className="text-sm font-semibold">{step.title}</div>
+                  <div className="mt-1 text-xs font-medium text-coral">{step.agent_name}</div>
+                  <p className="mt-3 text-sm leading-6 text-slate-600">{step.detail}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       <section className="mx-auto grid max-w-7xl gap-6 px-6 pb-6 lg:grid-cols-[0.95fr_1.05fr]">
         <div className="rounded border border-slate-200 bg-white p-5 shadow-sm">

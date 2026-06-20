@@ -87,6 +87,23 @@ class AgentActivity(BaseModel):
     status: Literal["done", "active", "queued"]
 
 
+class ProtocolLearningStep(BaseModel):
+    order: int
+    agent_name: str
+    title: str
+    detail: str
+
+
+class ProtocolLearningRun(BaseModel):
+    trial: Trial
+    protocol_excerpt: str
+    extracted_facts: list[ClinicalFact]
+    extracted_criteria: list[TrialCriterion]
+    matched_patients: list[PatientMatch]
+    follow_up_tasks: list[FollowUpTask]
+    steps: list[ProtocolLearningStep]
+
+
 class DashboardSnapshot(BaseModel):
     patients: list[Patient]
     clinical_facts: list[ClinicalFact]

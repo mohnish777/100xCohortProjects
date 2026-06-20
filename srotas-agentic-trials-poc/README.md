@@ -30,6 +30,7 @@ docs/      Step-by-step implementation notes
 
 - Step 1: `docs/STEP_1_REVIEW.md`
 - Step 2: `docs/STEP_2_REVIEW.md`
+- Step 3: `docs/STEP_3_REVIEW.md`
 
 ## Model Defaults
 
@@ -67,4 +68,10 @@ Demo API:
 
 ```bash
 curl http://localhost:8000/api/demo/clinical-memory
+```
+
+Protocol-learning simulation:
+
+```bash
+curl -X POST http://localhost:8000/api/demo/run-protocol-learning
 ```
