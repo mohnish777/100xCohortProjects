@@ -17,9 +17,10 @@ from app.domain.models import (
     TrialCriterion,
 )
 from app.data.supabase_persistence import (
+    clear_persisted_demo_data,
     load_persisted_dashboard,
     persist_dashboard_snapshot,
-    reset_persisted_session,
+    supabase_configured,
 )
 from app.services.protocol_pdf import make_protocol_excerpt
 
@@ -127,8 +128,8 @@ DEMO_PROTOCOL_EXCERPT = (
 
 @dataclass
 class DemoSession:
-    patient: Patient
-    clinical_facts: list[ClinicalFact] = field(default_factory=lambda: list(BASE_CLINICAL_FACTS))
+    patient: Patient | None = None
+    clinical_facts: list[ClinicalFact] = field(default_factory=list)
     patient_fact_values: list[PatientFactValue] = field(default_factory=list)
     selected_trial: Trial = field(default_factory=lambda: EMPTY_TRIAL.model_copy())
     trial_criteria: list[TrialCriterion] = field(default_factory=list)
@@ -164,33 +165,22 @@ def _new_patient(patient_name: str = "Demo Patient", cancer_track: CancerTrack =
     )
 
 
-_session = DemoSession(patient=_new_patient())
+_session = DemoSession()
 
 
 def reset_demo_session(patient_name: str = "Demo Patient") -> DashboardSnapshot:
     global _session
-    _session = DemoSession(patient=_new_patient(patient_name))
-    _session.hydrated_from_supabase = True
-    reset_persisted_session(_session.patient, _session.clinical_facts)
+    _clear_session_memory()
+    clear_persisted_demo_data()
     return get_dashboard_snapshot()
 
 
 def get_dashboard_snapshot() -> DashboardSnapshot:
-    _hydrate_from_supabase_once()
+    _sync_session_from_supabase()
     matches = _match_patients()
     follow_up_tasks = _build_follow_up_tasks(matches)
 
-    return DashboardSnapshot(
-        patients=[_session.patient],
-        clinical_facts=_session.clinical_facts,
-        patient_fact_values=_session.patient_fact_values,
-        selected_trial=_session.selected_trial,
-        trial_criteria=_session.trial_criteria,
-        matches=matches,
-        follow_up_tasks=follow_up_tasks,
-        generated_sql=_build_generated_sql(),
-        agent_activity=_build_agent_activity(matches, follow_up_tasks),
-    )
+    return _snapshot_from_current_session(matches, follow_up_tasks)
 
 
 def get_cached_protocol_extraction(protocol_hash: str) -> ProtocolExtractionRecord | None:
@@ -219,10 +209,20 @@ def store_patient_intake(
     patient_name: str | None,
     agent_output: IntakeAgentOutput,
 ) -> None:
+    _sync_session_from_supabase()
+
     if patient_name:
-        _session.patient.display_name = patient_name.strip() or _session.patient.display_name
+        if _session.patient is None:
+            _session.patient = _new_patient(patient_name)
+        else:
+            _session.patient.display_name = patient_name.strip() or _session.patient.display_name
+    elif _session.patient is None:
+        _session.patient = _new_patient()
 
     _session.patient.cancer_track = agent_output.inferred_cancer_track
+    _merge_clinical_facts(
+        [FACT_BY_KEY[fact.fact_key] for fact in agent_output.extracted_facts if fact.fact_key in FACT_BY_KEY]
+    )
 
     existing_by_key = {value.fact_key: value for value in _session.patient_fact_values}
     for fact in agent_output.extracted_facts:
@@ -242,17 +242,19 @@ def store_patient_intake(
     _persist_current_snapshot()
 
 
-def _hydrate_from_supabase_once() -> None:
-    if _session.hydrated_from_supabase or _session.patient_fact_values or _session.trial_criteria:
+def _sync_session_from_supabase() -> None:
+    if not supabase_configured():
+        _session.hydrated_from_supabase = True
         return
 
     persisted = load_persisted_dashboard()
     _session.hydrated_from_supabase = True
     if not persisted:
+        _clear_session_memory()
         return
 
-    _session.patient = persisted.patients[0]
-    _session.clinical_facts = persisted.clinical_facts or list(BASE_CLINICAL_FACTS)
+    _session.patient = persisted.patients[0] if persisted.patients else None
+    _session.clinical_facts = persisted.clinical_facts
     _session.patient_fact_values = persisted.patient_fact_values
     _session.selected_trial = persisted.selected_trial
     _session.trial_criteria = persisted.trial_criteria
@@ -267,6 +269,7 @@ def get_protocol_learning_run(
     protocol_cache_status: str = "simulation",
     protocol_hash: str | None = None,
 ) -> ProtocolLearningRun:
+    _sync_session_from_supabase()
     protocol_excerpt = make_protocol_excerpt(protocol_text or DEMO_PROTOCOL_EXCERPT)
 
     if agent_output:
@@ -336,7 +339,9 @@ def get_protocol_learning_run(
     _merge_clinical_facts(extracted_facts)
     _session.trial_criteria = extracted_criteria
 
-    snapshot = get_dashboard_snapshot()
+    matches = _match_patients()
+    follow_up_tasks = _build_follow_up_tasks(matches)
+    snapshot = _snapshot_from_current_session(matches, follow_up_tasks)
     _persist_current_snapshot(snapshot)
     possible_count = sum(1 for match in snapshot.matches if match.status == "possible_match")
     eligible_count = sum(1 for match in snapshot.matches if match.status == "eligible")
@@ -397,12 +402,41 @@ def get_protocol_learning_run(
 
 
 def _persist_current_snapshot(snapshot: DashboardSnapshot | None = None) -> None:
+    current_snapshot = snapshot
+    if current_snapshot is None:
+        matches = _match_patients()
+        follow_up_tasks = _build_follow_up_tasks(matches)
+        current_snapshot = _snapshot_from_current_session(matches, follow_up_tasks)
+
     persist_dashboard_snapshot(
-        snapshot or get_dashboard_snapshot(),
+        current_snapshot,
         protocol_hash=_session.protocol_hash,
         protocol_excerpt=_session.protocol_excerpt,
         source_filename=_session.protocol_source_filename,
         agent_mode=_session.protocol_agent_mode,
+    )
+
+
+def _clear_session_memory() -> None:
+    global _session
+    _session = DemoSession()
+    _session.hydrated_from_supabase = True
+
+
+def _snapshot_from_current_session(
+    matches: list[PatientMatch],
+    follow_up_tasks: list[FollowUpTask],
+) -> DashboardSnapshot:
+    return DashboardSnapshot(
+        patients=[_session.patient] if _session.patient else [],
+        clinical_facts=_session.clinical_facts,
+        patient_fact_values=_session.patient_fact_values,
+        selected_trial=_session.selected_trial,
+        trial_criteria=_session.trial_criteria,
+        matches=matches,
+        follow_up_tasks=follow_up_tasks,
+        generated_sql=_build_generated_sql(),
+        agent_activity=_build_agent_activity(matches, follow_up_tasks),
     )
 
 
@@ -450,7 +484,7 @@ def _merge_clinical_facts(facts: list[ClinicalFact]) -> None:
 
 
 def _match_patients() -> list[PatientMatch]:
-    if not _session.trial_criteria:
+    if _session.patient is None or not _session.trial_criteria:
         return []
 
     patient_facts = {value.fact_key: value for value in _session.patient_fact_values}
@@ -629,12 +663,13 @@ def _build_agent_activity(
     matches: list[PatientMatch],
     follow_up_tasks: list[FollowUpTask],
 ) -> list[AgentActivity]:
+    patient_name = _session.patient.display_name if _session.patient else "No active patient"
     activity = [
         AgentActivity(
             agent_name="Intake Agent",
             action=(
                 f"Stored {len(_session.patient_fact_values)} fact row(s) for "
-                f"{_session.patient.display_name}."
+                f"{patient_name}."
             ),
             status="done" if _session.patient_fact_values else "queued",
         ),

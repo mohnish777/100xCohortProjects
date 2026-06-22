@@ -208,8 +208,7 @@ declare global {
 }
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
-const DEFAULT_INTAKE_TRANSCRIPT =
-  "I have lung cancer. My report says NSCLC, and the cancer has spread. I had immunotherapy before, but I do not know my PD-L1 TPS.";
+const DEFAULT_INTAKE_TRANSCRIPT = "";
 const INTAKE_AVATAR_QUESTIONS = [
   "What type of cancer were you diagnosed with?",
   "Do your reports mention a subtype, such as NSCLC, SCLC, HER2 status, or prostate cancer details?",
@@ -219,201 +218,21 @@ const INTAKE_AVATAR_QUESTIONS = [
 ];
 
 const fallbackSnapshot: DashboardSnapshot = {
-  patients: [
-    {
-      id: "p_lung_014",
-      display_name: "Patient L-014",
-      anonymized_code: "LUNG-014",
-      age_band: "50-59",
-      sex: "female",
-      cancer_track: "lung",
-    },
-    {
-      id: "p_lung_027",
-      display_name: "Patient L-027",
-      anonymized_code: "LUNG-027",
-      age_band: "60-69",
-      sex: "male",
-      cancer_track: "lung",
-    },
-    {
-      id: "p_breast_009",
-      display_name: "Patient B-009",
-      anonymized_code: "BRST-009",
-      age_band: "40-49",
-      sex: "female",
-      cancer_track: "breast",
-    },
-    {
-      id: "p_prostate_021",
-      display_name: "Patient P-021",
-      anonymized_code: "PROS-021",
-      age_band: "70-79",
-      sex: "male",
-      cancer_track: "prostate",
-    },
-  ],
-  clinical_facts: [
-    {
-      key: "cancer_type",
-      display_name: "Cancer type",
-      description: "Primary oncology track reported by the patient.",
-      value_type: "text",
-      unit: null,
-      oncology_track: "mixed",
-      question_template: "What type of cancer were you diagnosed with?",
-      source: "seed",
-    },
-    {
-      key: "histology",
-      display_name: "Histology",
-      description: "Subtype such as NSCLC or SCLC.",
-      value_type: "text",
-      unit: null,
-      oncology_track: "lung",
-      question_template: "Do your reports mention NSCLC, SCLC, or another subtype?",
-      source: "seed",
-    },
-    {
-      key: "metastatic",
-      display_name: "Metastatic disease",
-      description: "Whether cancer is metastatic or advanced.",
-      value_type: "boolean",
-      unit: null,
-      oncology_track: "mixed",
-      question_template: "Has your cancer spread or been called metastatic?",
-      source: "seed",
-    },
-    {
-      key: "pd_l1_tps",
-      display_name: "PD-L1 TPS",
-      description: "PD-L1 tumor proportion score used for lung immunotherapy eligibility.",
-      value_type: "number",
-      unit: "%",
-      oncology_track: "lung",
-      question_template: "Do you have a PD-L1 TPS percentage on your pathology report?",
-      source: "protocol_agent",
-    },
-  ],
-  patient_fact_values: [
-    {
-      patient_id: "p_lung_014",
-      fact_key: "cancer_type",
-      value: "lung",
-      display_value: "lung",
-      evidence: "Patient described a lung cancer diagnosis.",
-      confidence: 0.94,
-    },
-    {
-      patient_id: "p_lung_014",
-      fact_key: "histology",
-      value: "NSCLC",
-      display_value: "NSCLC",
-      evidence: "Patient said the report mentions NSCLC.",
-      confidence: 0.91,
-    },
-    {
-      patient_id: "p_lung_014",
-      fact_key: "metastatic",
-      value: true,
-      display_value: "true",
-      evidence: "Patient said the cancer has spread.",
-      confidence: 0.87,
-    },
-    {
-      patient_id: "p_lung_027",
-      fact_key: "pd_l1_tps",
-      value: 72,
-      display_value: "72%",
-      evidence: "Pathology report lists PD-L1 TPS 72%.",
-      confidence: 0.96,
-    },
-  ],
+  patients: [],
+  clinical_facts: [],
+  patient_fact_values: [],
   selected_trial: {
-    id: "trial_st_402",
-    title: "ST-402 PD-L1 High NSCLC Study",
-    sponsor: "Srotas Demo Network",
-    cancer_track: "lung",
-    protocol_summary: "Synthetic demo protocol requiring metastatic NSCLC and PD-L1 TPS >= 50.",
+    id: "",
+    title: "No protocol uploaded yet",
+    sponsor: "",
+    cancer_track: "mixed",
+    protocol_summary: "Upload a trial protocol PDF to teach the system what facts matter.",
   },
-  trial_criteria: [
-    {
-      id: "tc_001",
-      trial_id: "trial_st_402",
-      criterion_type: "inclusion",
-      fact_key: "cancer_type",
-      operator: "=",
-      expected_value: "lung",
-      display: "Cancer type equals lung",
-      source_quote: "Participants must have lung cancer.",
-      required: true,
-    },
-    {
-      id: "tc_004",
-      trial_id: "trial_st_402",
-      criterion_type: "inclusion",
-      fact_key: "pd_l1_tps",
-      operator: ">=",
-      expected_value: 50,
-      display: "PD-L1 TPS is at least 50%",
-      source_quote: "Participants must have PD-L1 TPS of at least 50%.",
-      required: true,
-    },
-  ],
-  matches: [
-    {
-      patient_id: "p_lung_014",
-      patient_name: "Patient L-014",
-      status: "possible_match",
-      explanation: "Meets known lung, NSCLC, and metastatic criteria, but PD-L1 TPS is missing.",
-      missing_fact_keys: ["pd_l1_tps"],
-      matched_fact_keys: ["cancer_type", "histology", "metastatic"],
-    },
-    {
-      patient_id: "p_lung_027",
-      patient_name: "Patient L-027",
-      status: "eligible",
-      explanation: "Meets lung, NSCLC, metastatic, and PD-L1 TPS >= 50 criteria.",
-      missing_fact_keys: [],
-      matched_fact_keys: ["cancer_type", "histology", "metastatic", "pd_l1_tps"],
-    },
-  ],
-  follow_up_tasks: [
-    {
-      id: "fu_001",
-      patient_id: "p_lung_014",
-      patient_name: "Patient L-014",
-      trial_id: "trial_st_402",
-      fact_key: "pd_l1_tps",
-      fact_display_name: "PD-L1 TPS",
-      question: "Can you confirm whether your pathology report shows a PD-L1 TPS percentage?",
-      status: "open",
-      priority: "high",
-      created_by_agent: "fact_registry_agent",
-    },
-  ],
-  generated_sql: `select p.id, p.anonymized_code
-from patients p
-join patient_fact_values cancer on cancer.patient_id = p.id
-where cancer.fact_key = 'cancer_type'
-  and cancer.value_text = 'lung';`,
-  agent_activity: [
-    {
-      agent_name: "Intake Agent",
-      action: "Stored lung cancer history as patient fact rows.",
-      status: "done",
-    },
-    {
-      agent_name: "Fact Registry Agent",
-      action: "Registered pd_l1_tps without adding a patient table column.",
-      status: "done",
-    },
-    {
-      agent_name: "Voice Follow-up Agent",
-      action: "Queued PD-L1 follow-up for Patient L-014.",
-      status: "queued",
-    },
-  ],
+  trial_criteria: [],
+  matches: [],
+  follow_up_tasks: [],
+  generated_sql: "-- Upload a protocol to generate a read-only SQL preview.",
+  agent_activity: [],
 };
 
 const cancerTracks = [
@@ -456,7 +275,7 @@ function App() {
     "idle",
   );
   const [protocolUploadError, setProtocolUploadError] = useState<string | null>(null);
-  const [patientName, setPatientName] = useState("Aarav Sharma");
+  const [patientName, setPatientName] = useState("");
   const [intakeTranscript, setIntakeTranscript] = useState(DEFAULT_INTAKE_TRANSCRIPT);
   const [intakeRun, setIntakeRun] = useState<IntakeAgentRun | null>(null);
   const [intakeRunState, setIntakeRunState] = useState<"idle" | "running" | "done" | "error">(
@@ -862,7 +681,9 @@ function App() {
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-3">
               <div className="text-xl font-semibold">
-                {primaryMatch ? primaryMatch.patient_name : activePatient?.display_name ?? patientName}
+                {primaryMatch
+                  ? primaryMatch.patient_name
+                  : (activePatient?.display_name ?? patientName) || "New patient"}
               </div>
               {primaryMatch ? (
                 <span
@@ -984,7 +805,7 @@ function App() {
                   className="mt-2 h-10 w-full rounded border border-slate-200 px-3 text-sm font-semibold text-slate-700 outline-none focus:border-sage"
                 />
                 <div className="mt-2 text-xs leading-5 text-slate-500">
-                  Dashboard display name: {activePatient?.display_name ?? patientName}
+                  Dashboard display name: {(activePatient?.display_name ?? patientName) || "New patient"}
                 </div>
               </div>
               <div className="rounded border border-slate-200 bg-slate-50 p-4">
@@ -1049,14 +870,14 @@ function App() {
                   <button
                     onClick={() => {
                       stopVoiceCapture();
-                      setIntakeTranscript(DEFAULT_INTAKE_TRANSCRIPT);
+                      setIntakeTranscript("");
                       setAvatarQuestionIndex(0);
                       setAvatarMessage(INTAKE_AVATAR_QUESTIONS[0]);
                       setVoiceError(null);
                     }}
                     className="inline-flex h-9 items-center rounded border border-slate-300 px-3 text-sm font-semibold text-slate-700"
                   >
-                    Reset sample
+                    Clear transcript
                   </button>
                 </div>
               </div>
@@ -1125,7 +946,7 @@ function App() {
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <div className="text-sm font-semibold">
-                      {activePatient?.display_name ?? patientName}
+                      {(activePatient?.display_name ?? patientName) || "New patient"}
                     </div>
                     <div className="text-xs text-slate-500">
                       Active demo patient, {activePatient?.age_band ?? "Not captured"},{" "}

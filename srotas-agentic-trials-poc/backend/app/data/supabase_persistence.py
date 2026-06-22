@@ -215,6 +215,32 @@ def reset_persisted_session(patient: Patient, clinical_facts: list[ClinicalFact]
         )
 
 
+def clear_persisted_demo_data() -> None:
+    client = _supabase_client()
+    if client is None:
+        return
+
+    try:
+        active_patient_id = _active_patient_id()
+        active_trial_id = _active_trial_id()
+
+        client.table("follow_up_tasks").delete().eq("patient_id", active_patient_id).execute()
+        client.table("match_runs").delete().eq("trial_id", active_trial_id).execute()
+        client.table("patient_fact_values").delete().eq("patient_id", active_patient_id).execute()
+        client.table("intake_sessions").delete().eq("patient_id", active_patient_id).execute()
+        client.table("trial_criteria").delete().eq("trial_id", active_trial_id).execute()
+        client.table("protocol_extractions").delete().eq("trial_id", active_trial_id).execute()
+        client.table("trials").delete().eq("id", active_trial_id).execute()
+        client.table("patients").delete().eq("id", active_patient_id).execute()
+        logger.info("Supabase active demo data cleared")
+    except Exception as exc:
+        logger.warning(
+            "Supabase active demo data clear failed error_type=%s error=%s",
+            type(exc).__name__,
+            exc,
+        )
+
+
 def persist_dashboard_snapshot(
     snapshot: DashboardSnapshot,
     *,
